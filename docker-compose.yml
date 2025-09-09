@@ -7,6 +7,7 @@ services:
       - "3001:3001"
     volumes:
       - ./maas.conf:/app/maas.conf:ro
+      - ./users.conf:/app/users.conf:ro
       - ./data:/app/data
     environment:
       - NODE_ENV=production

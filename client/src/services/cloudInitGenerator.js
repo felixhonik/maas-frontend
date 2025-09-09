@@ -4,31 +4,12 @@
  * Generate base cloud-init configuration with common settings
  * Now OS-aware for Rocky/RHEL vs Ubuntu differences
  */
-const generateBaseCloudInit = (osType = 'ubuntu') => {
+const generateBaseCloudInit = (osType = 'ubuntu', userCredentials = null) => {
   const isRocky = osType.toLowerCase().includes('rocky') || 
                   osType.toLowerCase().includes('rhel') || 
                   osType.toLowerCase().includes('centos');
   
-  return {
-    // Create weka user with predefined password - enhanced for Rocky Linux compatibility
-    users: [
-      {
-        name: 'weka',
-        plain_text_passwd: 'W3ka.io123',
-        sudo: isRocky ? ['ALL=(ALL) NOPASSWD:ALL'] : 'ALL=(ALL) NOPASSWD:ALL',
-        shell: '/bin/bash',
-        // Rocky/RHEL uses 'wheel' group, Ubuntu uses 'sudo'
-        groups: isRocky ? ['wheel', 'docker'] : ['sudo', 'docker'],
-        lock_passwd: false,
-        // Additional Rocky Linux specific settings
-        ...(isRocky && {
-          ssh_authorized_keys: [],
-          system: false,
-          create_user_group: true
-        })
-      }
-    ],
-    
+  const config = {
     // OS-specific packages
     packages: isRocky ? [
       'curl',
@@ -54,69 +35,122 @@ const generateBaseCloudInit = (osType = 'ubuntu') => {
     // Basic system configuration
     ssh_pwauth: true,
     disable_root: false,
+  };
+
+  // Only add users section if credentials are provided
+  if (userCredentials && userCredentials.configured !== false && userCredentials.username && userCredentials.password) {
+    const username = userCredentials.username;
+    const password = userCredentials.password;
+    
+    config.users = [
+      {
+        name: username,
+        plain_text_passwd: password,
+        sudo: isRocky ? ['ALL=(ALL) NOPASSWD:ALL'] : 'ALL=(ALL) NOPASSWD:ALL',
+        shell: '/bin/bash',
+        // Rocky/RHEL uses 'wheel' group, Ubuntu uses 'sudo'
+        groups: isRocky ? ['wheel', 'docker'] : ['sudo', 'docker'],
+        lock_passwd: false,
+        // Additional Rocky Linux specific settings
+        ...(isRocky && {
+          ssh_authorized_keys: [],
+          system: false,
+          create_user_group: true
+        })
+      }
+    ];
+  }
+
+  // Add user-specific run commands only if user is configured
+  const userSpecificCommands = [];
+  const username = userCredentials?.username;
+  
+  if (userCredentials && userCredentials.configured !== false && username) {
+    const password = userCredentials.password;
+    
+    if (isRocky) {
+      userSpecificCommands.push(
+        `# CRITICAL: Force ${username} user creation immediately (Rocky Linux compatibility)`,
+        'echo "=== EMERGENCY USER CREATION ===" | tee -a /var/log/cloud-init-userdata.log',
+        `if ! id ${username} >/dev/null 2>&1; then`,
+        `  echo "Cloud-init user creation appears to have failed. Creating ${username} user manually NOW..." | tee -a /var/log/cloud-init-userdata.log`,
+        `  useradd -m -s /bin/bash ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: useradd failed" | tee -a /var/log/cloud-init-userdata.log`,
+        `  echo "${username}:${password}" | chpasswd 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: chpasswd failed" | tee -a /var/log/cloud-init-userdata.log`,
+        `  usermod -aG wheel ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: usermod wheel failed" | tee -a /var/log/cloud-init-userdata.log`,
+        `  id ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log`,
+        '  echo "Emergency user creation completed" | tee -a /var/log/cloud-init-userdata.log',
+        'else',
+        `  echo "GOOD: ${username} user exists, skipping emergency creation" | tee -a /var/log/cloud-init-userdata.log`,
+        'fi',
+        'systemctl enable sshd 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        'systemctl start sshd 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        `# Ensure wheel group has sudo privileges for ${username} user`,
+        'echo "%wheel ALL=(ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/wheel',
+        'chmod 0440 /etc/sudoers.d/wheel',
+        `# Enhanced ${username} user creation for Rocky Linux with comprehensive debugging`,
+        'echo "=== User Creation Debug Information ===" | tee -a /var/log/cloud-init-userdata.log',
+        'echo "OS Type: Rocky/RHEL/CentOS detected" | tee -a /var/log/cloud-init-userdata.log',
+        'echo "Available groups:" | tee -a /var/log/cloud-init-userdata.log',
+        'getent group wheel docker 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        `echo "Checking if ${username} user exists..." | tee -a /var/log/cloud-init-userdata.log`,
+        `if id ${username} >/dev/null 2>&1; then echo "GOOD: ${username} user already exists from cloud-init" | tee -a /var/log/cloud-init-userdata.log; else echo "WARNING: ${username} user not found, creating manually..." | tee -a /var/log/cloud-init-userdata.log; fi`,
+        `if ! id ${username} >/dev/null 2>&1; then`,
+        `  echo "Step 1: Creating ${username} user with useradd..." | tee -a /var/log/cloud-init-userdata.log`,
+        `  useradd -m -s /bin/bash ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log`,
+        `  echo "Step 2: Setting password for ${username} user..." | tee -a /var/log/cloud-init-userdata.log`, 
+        `  echo "${username}:${password}" | chpasswd 2>&1 | tee -a /var/log/cloud-init-userdata.log`,
+        `  echo "Step 3: Adding ${username} to wheel group..." | tee -a /var/log/cloud-init-userdata.log`,
+        `  usermod -aG wheel ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log`,
+        `  echo "Step 4: Adding ${username} to docker group (if exists)..." | tee -a /var/log/cloud-init-userdata.log`,
+        `  getent group docker >/dev/null && usermod -aG docker ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "Docker group not found, skipping..." | tee -a /var/log/cloud-init-userdata.log`,
+        '  echo "Manual user creation completed" | tee -a /var/log/cloud-init-userdata.log',
+        'fi',
+        `# Final verification of ${username} user`,
+        'echo "=== Final User Verification ===" | tee -a /var/log/cloud-init-userdata.log',
+        `id ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: ${username} user still not found!" | tee -a /var/log/cloud-init-userdata.log`,
+        `groups ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: cannot check ${username} user groups" | tee -a /var/log/cloud-init-userdata.log`,
+        `getent passwd ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: ${username} user not in passwd database" | tee -a /var/log/cloud-init-userdata.log`,
+        'echo "Rocky Linux base configuration completed" | tee -a /var/log/cloud-init-userdata.log'
+      );
+    } else {
+      userSpecificCommands.push(
+        'systemctl enable ssh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        'systemctl start ssh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        `# Verify ${username} user was created with correct groups`,
+        `id ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "WARNING: ${username} user not found" | tee -a /var/log/cloud-init-userdata.log`,
+        `groups ${username} 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "WARNING: cannot check ${username} user groups" | tee -a /var/log/cloud-init-userdata.log`,
+        'echo "Ubuntu base configuration completed" | tee -a /var/log/cloud-init-userdata.log'
+      );
+    }
+  } else {
+    // No user configuration - just basic system setup
+    if (isRocky) {
+      userSpecificCommands.push(
+        'systemctl enable sshd 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        'systemctl start sshd 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        'echo "Rocky Linux base configuration completed (no user configured)" | tee -a /var/log/cloud-init-userdata.log'
+      );
+    } else {
+      userSpecificCommands.push(
+        'systemctl enable ssh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        'systemctl start ssh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+        'echo "Ubuntu base configuration completed (no user configured)" | tee -a /var/log/cloud-init-userdata.log'
+      );
+    }
+  }
+
+  return {
+    ...config,
     
     // OS-specific run commands with proper logging setup
-    runcmd: isRocky ? [
+    runcmd: [
       'mkdir -p /var/log',
       'touch /var/log/cloud-init-userdata.log /var/log/maas-deployment.log',
       'chmod 644 /var/log/cloud-init-userdata.log /var/log/maas-deployment.log',
       'echo "=== MAAS Cloud-Init Deployment Started at $(date) ===" | tee -a /var/log/cloud-init-userdata.log',
       'echo "MAAS deployment started at $(date)" | tee /var/log/maas-deployment.log',
-      'echo "Configuring Rocky Linux system..." | tee -a /var/log/cloud-init-userdata.log',
-      '# CRITICAL: Force weka user creation immediately (Rocky Linux compatibility)',
-      'echo "=== EMERGENCY USER CREATION ===" | tee -a /var/log/cloud-init-userdata.log',
-      'if ! id weka >/dev/null 2>&1; then',
-      '  echo "Cloud-init user creation appears to have failed. Creating weka user manually NOW..." | tee -a /var/log/cloud-init-userdata.log',
-      '  useradd -m -s /bin/bash weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: useradd failed" | tee -a /var/log/cloud-init-userdata.log',
-      '  echo "weka:W3ka.io123" | chpasswd 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: chpasswd failed" | tee -a /var/log/cloud-init-userdata.log',
-      '  usermod -aG wheel weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: usermod wheel failed" | tee -a /var/log/cloud-init-userdata.log',
-      '  id weka 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      '  echo "Emergency user creation completed" | tee -a /var/log/cloud-init-userdata.log',
-      'else',
-      '  echo "GOOD: weka user exists, skipping emergency creation" | tee -a /var/log/cloud-init-userdata.log',
-      'fi',
-      'systemctl enable sshd 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      'systemctl start sshd 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      '# Ensure wheel group has sudo privileges for weka user',
-      'echo "%wheel ALL=(ALL) NOPASSWD: ALL" | tee /etc/sudoers.d/wheel',
-      'chmod 0440 /etc/sudoers.d/wheel',
-      '# Enhanced weka user creation for Rocky Linux with comprehensive debugging',
-      'echo "=== User Creation Debug Information ===" | tee -a /var/log/cloud-init-userdata.log',
-      'echo "OS Type: Rocky/RHEL/CentOS detected" | tee -a /var/log/cloud-init-userdata.log',
-      'echo "Available groups:" | tee -a /var/log/cloud-init-userdata.log',
-      'getent group wheel docker 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      'echo "Checking if weka user exists..." | tee -a /var/log/cloud-init-userdata.log',
-      'if id weka >/dev/null 2>&1; then echo "GOOD: weka user already exists from cloud-init" | tee -a /var/log/cloud-init-userdata.log; else echo "WARNING: weka user not found, creating manually..." | tee -a /var/log/cloud-init-userdata.log; fi',
-      'if ! id weka >/dev/null 2>&1; then',
-      '  echo "Step 1: Creating weka user with useradd..." | tee -a /var/log/cloud-init-userdata.log',
-      '  useradd -m -s /bin/bash weka 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      '  echo "Step 2: Setting password for weka user..." | tee -a /var/log/cloud-init-userdata.log', 
-      '  echo "weka:W3ka.io123" | chpasswd 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      '  echo "Step 3: Adding weka to wheel group..." | tee -a /var/log/cloud-init-userdata.log',
-      '  usermod -aG wheel weka 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      '  echo "Step 4: Adding weka to docker group (if exists)..." | tee -a /var/log/cloud-init-userdata.log',
-      '  getent group docker >/dev/null && usermod -aG docker weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "Docker group not found, skipping..." | tee -a /var/log/cloud-init-userdata.log',
-      '  echo "Manual user creation completed" | tee -a /var/log/cloud-init-userdata.log',
-      'fi',
-      '# Final verification of weka user',
-      'echo "=== Final User Verification ===" | tee -a /var/log/cloud-init-userdata.log',
-      'id weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: weka user still not found!" | tee -a /var/log/cloud-init-userdata.log',
-      'groups weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: cannot check weka user groups" | tee -a /var/log/cloud-init-userdata.log',
-      'getent passwd weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "ERROR: weka user not in passwd database" | tee -a /var/log/cloud-init-userdata.log',
-      'echo "Rocky Linux base configuration completed" | tee -a /var/log/cloud-init-userdata.log'
-    ] : [
-      'mkdir -p /var/log',
-      'touch /var/log/cloud-init-userdata.log /var/log/maas-deployment.log',
-      'chmod 644 /var/log/cloud-init-userdata.log /var/log/maas-deployment.log',
-      'echo "=== MAAS Cloud-Init Deployment Started at $(date) ===" | tee -a /var/log/cloud-init-userdata.log',
-      'echo "MAAS deployment started at $(date)" | tee /var/log/maas-deployment.log',
-      'echo "Configuring Ubuntu system..." | tee -a /var/log/cloud-init-userdata.log',
-      'systemctl enable ssh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      'systemctl start ssh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
-      '# Verify weka user was created with correct groups',
-      'id weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "WARNING: weka user not found" | tee -a /var/log/cloud-init-userdata.log',
-      'groups weka 2>&1 | tee -a /var/log/cloud-init-userdata.log || echo "WARNING: cannot check weka user groups" | tee -a /var/log/cloud-init-userdata.log',
-      'echo "Ubuntu base configuration completed" | tee -a /var/log/cloud-init-userdata.log'
+      `echo "Configuring ${isRocky ? 'Rocky Linux' : 'Ubuntu'} system..." | tee -a /var/log/cloud-init-userdata.log`,
+      ...userSpecificCommands
     ]
   };
 };
@@ -418,11 +452,11 @@ const mergeConfigurations = (baseConfig, enhancements, userConfig = '') => {
 /**
  * Generate cloud-init configuration for a single machine
  */
-const generateMachineCloudInit = (machine, userConfig = '', osType = 'ubuntu') => {
+const generateMachineCloudInit = (machine, userConfig = '', osType = 'ubuntu', userCredentials = null) => {
   const machineTags = machine.tag_names || [];
   
   // Generate base configuration with OS awareness
-  const baseConfig = generateBaseCloudInit(osType);
+  const baseConfig = generateBaseCloudInit(osType, userCredentials);
   
   // Generate tag-based enhancements for this specific machine
   const enhancements = generateTagBasedEnhancements(machineTags, osType);
@@ -458,7 +492,7 @@ const generateMachineCloudInit = (machine, userConfig = '', osType = 'ubuntu') =
 
 hostname: ${finalConfig.hostname}
 
-users:
+${finalConfig.users ? `users:
 ${finalConfig.users.map(user => `  - name: ${user.name}
     plain_text_passwd: '${user.plain_text_passwd}'
     sudo: '${user.sudo}'
@@ -466,7 +500,7 @@ ${finalConfig.users.map(user => `  - name: ${user.name}
     groups: [${user.groups.join(', ')}]
     lock_passwd: ${user.lock_passwd}`).join('\n')}
 
-ssh_pwauth: ${finalConfig.ssh_pwauth}
+` : ''}ssh_pwauth: ${finalConfig.ssh_pwauth}
 disable_root: ${finalConfig.disable_root}
 
 packages:
@@ -482,7 +516,7 @@ ${finalConfig.runcmd.map(cmd => `  - "${cmd.replace(/"/g, '\\"')}"`).join('\n')}
   - "echo '=== MAAS Cloud-Init Deployment Completed at \$(date) ===' | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log"
   - "echo 'All user-data logs saved to /var/log/cloud-init-userdata.log' | tee -a /var/log/maas-deployment.log"
   - "echo 'Final user verification:' | tee -a /var/log/cloud-init-userdata.log"
-  - "id weka | tee -a /var/log/cloud-init-userdata.log || echo 'ERROR: weka user not created!' | tee -a /var/log/cloud-init-userdata.log"
+${finalConfig.users ? `  - "id ${finalConfig.users[0].name} | tee -a /var/log/cloud-init-userdata.log || echo 'ERROR: ${finalConfig.users[0].name} user not created!' | tee -a /var/log/cloud-init-userdata.log"` : '  - "echo \'No user configured for this deployment\' | tee -a /var/log/cloud-init-userdata.log"'}
 
 final_message: "MAAS deployment completed successfully for ${finalConfig.hostname} with Weka configurations"
 `;
@@ -501,10 +535,10 @@ final_message: "MAAS deployment completed successfully for ${finalConfig.hostnam
  * Generate complete cloud-init configuration for machines (backward compatibility)
  * Now generates individual configs for each machine
  */
-export const generateCloudInit = (selectedMachines, userConfig = '', osType = 'ubuntu') => {
+export const generateCloudInit = (selectedMachines, userConfig = '', osType = 'ubuntu', userCredentials = null) => {
   if (selectedMachines.length === 1) {
     // Single machine - return individual config
-    const machineConfig = generateMachineCloudInit(selectedMachines[0], userConfig, osType);
+    const machineConfig = generateMachineCloudInit(selectedMachines[0], userConfig, osType, userCredentials);
     
     // Create sanitized version for display (without password)
     const sanitizedYamlString = machineConfig.config.replace(
@@ -522,7 +556,7 @@ export const generateCloudInit = (selectedMachines, userConfig = '', osType = 'u
   } else {
     // Multiple machines - generate individual configs for each
     const machineConfigs = selectedMachines.map(machine => 
-      generateMachineCloudInit(machine, userConfig, osType)
+      generateMachineCloudInit(machine, userConfig, osType, userCredentials)
     );
     
     // Get all unique tags from all machines
@@ -541,13 +575,13 @@ export const generateCloudInit = (selectedMachines, userConfig = '', osType = 'u
 # Note: Each machine will receive individualized configuration
 # based on its specific tags and hardware configuration
 
-users:
-  - name: weka
+${userCredentials?.configured !== false ? `users:
+  - name: ${userCredentials?.username || 'user'}
     plain_text_passwd: '[HIDDEN]'
     sudo: 'ALL=(ALL) NOPASSWD:ALL'
     shell: /bin/bash
     groups: [sudo, docker]
-    lock_passwd: false
+    lock_passwd: false` : '# No user configuration - machines will use default system access'}
 
 # Individual machine configurations will be applied during deployment
 # Each machine gets customized packages, drivers, and scripts based on its tags
@@ -568,8 +602,8 @@ final_message: "MAAS deployment completed for ${selectedMachines.length} machine
 /**
  * Get individual machine configuration for deployment
  */
-export const getMachineCloudInit = (machine, userConfig = '', osType = 'ubuntu') => {
-  const machineConfig = generateMachineCloudInit(machine, userConfig, osType);
+export const getMachineCloudInit = (machine, userConfig = '', osType = 'ubuntu', userCredentials = null) => {
+  const machineConfig = generateMachineCloudInit(machine, userConfig, osType, userCredentials);
   return machineConfig.config;
 };
 

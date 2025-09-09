@@ -21,26 +21,73 @@ import { generateCloudInit, getEnhancementDescription } from '../services/cloudI
 const DeploymentOptions = ({ config, onConfigChange, selectedOS, selectedMachines = [] }) => {
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [useGenerated, setUseGenerated] = useState(true);
+  const [userCredentials, setUserCredentials] = useState(null);
+  
+  // Fetch user credentials on component mount
+  useEffect(() => {
+    fetch('/api/user/config')
+      .then(response => response.json())
+      .then(data => {
+        // Don't store password in state, just username
+        setUserCredentials({
+          configured: data.configured,
+          username: data.username,
+          hasPassword: data.hasPassword
+        });
+      })
+      .catch(error => {
+        console.error('Failed to fetch user config:', error);
+        // Set to unconfigured state
+        setUserCredentials({
+          configured: false,
+          username: null,
+          hasPassword: false
+        });
+      });
+  }, []);
+  
   // Generate automatic cloud-init when machines are selected
   useEffect(() => {
-    if (selectedMachines && selectedMachines.length > 0) {
-      // Determine OS type from selected OS
-      const osType = selectedOS.toLowerCase().includes('rocky') || 
-                    selectedOS.toLowerCase().includes('rhel') || 
-                    selectedOS.toLowerCase().includes('centos') ? 'rocky' : 'ubuntu';
-      
-      const result = generateCloudInit(selectedMachines, config.user_data, osType);
-      setGeneratedConfig(result);
-      
-      // Update config with generated cloud-init if using generated mode
-      if (useGenerated) {
-        onConfigChange({
-          ...config,
-          user_data: result.config
+    if (selectedMachines && selectedMachines.length > 0 && userCredentials) {
+      // Fetch actual credentials for cloud-init generation
+      fetch('/api/user/credentials')
+        .then(response => response.json())
+        .then(credentials => {
+          // Determine OS type from selected OS
+          const osType = selectedOS.toLowerCase().includes('rocky') || 
+                        selectedOS.toLowerCase().includes('rhel') || 
+                        selectedOS.toLowerCase().includes('centos') ? 'rocky' : 'ubuntu';
+          
+          const result = generateCloudInit(selectedMachines, config.user_data, osType, credentials);
+          setGeneratedConfig(result);
+          
+          // Update config with generated cloud-init if using generated mode
+          if (useGenerated) {
+            onConfigChange({
+              ...config,
+              user_data: result.config
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Failed to fetch credentials for cloud-init:', error);
+          // Fallback to no credentials
+          const osType = selectedOS.toLowerCase().includes('rocky') || 
+                        selectedOS.toLowerCase().includes('rhel') || 
+                        selectedOS.toLowerCase().includes('centos') ? 'rocky' : 'ubuntu';
+          
+          const result = generateCloudInit(selectedMachines, config.user_data, osType, { configured: false });
+          setGeneratedConfig(result);
+          
+          if (useGenerated) {
+            onConfigChange({
+              ...config,
+              user_data: result.config
+            });
+          }
         });
-      }
     }
-  }, [selectedMachines, useGenerated, selectedOS]);
+  }, [selectedMachines, useGenerated, selectedOS, userCredentials]);
 
   const handleChange = (field, value) => {
     onConfigChange({
@@ -70,17 +117,36 @@ const DeploymentOptions = ({ config, onConfigChange, selectedOS, selectedMachine
 
   const handleRegenerateConfig = () => {
     if (selectedMachines && selectedMachines.length > 0) {
-      // Determine OS type from selected OS
-      const osType = selectedOS.toLowerCase().includes('rocky') || 
-                    selectedOS.toLowerCase().includes('rhel') || 
-                    selectedOS.toLowerCase().includes('centos') ? 'rocky' : 'ubuntu';
-      
-      const result = generateCloudInit(selectedMachines, '', osType);
-      setGeneratedConfig(result);
-      onConfigChange({
-        ...config,
-        user_data: result.config
-      });
+      // Fetch actual credentials for cloud-init generation
+      fetch('/api/user/credentials')
+        .then(response => response.json())
+        .then(credentials => {
+          // Determine OS type from selected OS
+          const osType = selectedOS.toLowerCase().includes('rocky') || 
+                        selectedOS.toLowerCase().includes('rhel') || 
+                        selectedOS.toLowerCase().includes('centos') ? 'rocky' : 'ubuntu';
+          
+          const result = generateCloudInit(selectedMachines, '', osType, credentials);
+          setGeneratedConfig(result);
+          onConfigChange({
+            ...config,
+            user_data: result.config
+          });
+        })
+        .catch(error => {
+          console.error('Failed to fetch credentials for regenerate:', error);
+          // Fallback to no credentials
+          const osType = selectedOS.toLowerCase().includes('rocky') || 
+                        selectedOS.toLowerCase().includes('rhel') || 
+                        selectedOS.toLowerCase().includes('centos') ? 'rocky' : 'ubuntu';
+          
+          const result = generateCloudInit(selectedMachines, '', osType, { configured: false });
+          setGeneratedConfig(result);
+          onConfigChange({
+            ...config,
+            user_data: result.config
+          });
+        });
     }
   };
 

@@ -27,7 +27,23 @@ MAAS_URL=http://your-maas-server:5240/MAAS
 API_KEY=your-api-key-here
 ```
 
-### 2. Deploy with Docker Compose
+### 2. Configure User Credentials (Optional)
+
+Create a `users.conf` file to customize the default user credentials for deployed machines:
+
+```bash
+cp users.conf.example users.conf
+```
+
+Edit `users.conf` with your desired credentials:
+```
+USERNAME=your-username
+PASSWORD=your-secure-password
+```
+
+If not configured, no user will be created on deployed machines (you'll need to use other access methods like SSH keys or console access).
+
+### 3. Deploy with Docker Compose
 
 ```bash
 # Build and start the application
@@ -39,7 +55,7 @@ docker-compose logs -f
 
 The application will be available at http://localhost:3001
 
-### 3. Development Setup
+### 4. Development Setup
 
 For local development:
 
@@ -69,6 +85,8 @@ This starts:
 - `GET /api/config/status` - Check MAAS configuration
 - `GET /api/machines` - List all machines
 - `GET /api/tags` - List all tags
+- `GET /api/user/config` - Get current user configuration (without password)
+- `GET /api/user/credentials` - Get user credentials for cloud-init generation
 - `POST /api/machines/:id/deploy` - Deploy a machine
 
 ## Configuration
@@ -80,6 +98,27 @@ To get your MAAS API key:
 2. Go to your user profile (top right)
 3. Find the "API keys" section
 4. Copy your existing key or generate a new one
+
+### User Credentials
+
+The system supports configurable user credentials for deployed machines:
+
+- **Configuration file**: `users.conf` (key-value format)
+- **Required fields**: `USERNAME` and `PASSWORD`
+- **Security**: File is git-ignored and mounted read-only in Docker
+- **Default behavior**: No user created if file not found
+- **Usage**: All cloud-init configurations will use these credentials
+
+Example `users.conf`:
+```
+USERNAME=admin
+PASSWORD=MySecurePassword123!
+```
+
+After changing credentials, restart the Docker container:
+```bash
+docker compose restart
+```
 
 ### Environment Variables
 
@@ -98,6 +137,7 @@ docker build -t maas-frontend .
 docker run -d \
   -p 3001:3001 \
   -v $(pwd)/maas.conf:/app/maas.conf:ro \
+  -v $(pwd)/users.conf:/app/users.conf:ro \
   --name maas-frontend \
   maas-frontend
 ```
@@ -138,7 +178,8 @@ maas-front/
 │   │   ├── hooks/         # Custom React hooks
 │   │   └── services/      # API client
 ├── server.js              # Express backend
-├── maas.conf.example      # Configuration template
+├── maas.conf.example      # MAAS configuration template
+├── users.conf.example     # User credentials template
 ├── Dockerfile             # Multi-stage build
 └── docker-compose.yml     # Orchestration
 ```

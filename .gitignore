@@ -2,6 +2,7 @@
 maas.conf
 *.conf
 !maas.conf.example
+!users.conf.example
 
 # Node modules
 node_modules/

@@ -12,6 +12,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'client/dist')));
 
 let maasConfig = null;
+let userConfig = null;
 
 // Load MAAS configuration
 const loadMaasConfig = () => {
@@ -39,8 +40,37 @@ const loadMaasConfig = () => {
   }
 };
 
+// Load user configuration
+const loadUserConfig = () => {
+  try {
+    const configPath = path.join(__dirname, 'users.conf');
+    if (fs.existsSync(configPath)) {
+      const configContent = fs.readFileSync(configPath, 'utf8');
+      const lines = configContent.split('\n');
+      const config = {};
+      
+      lines.forEach(line => {
+        const [key, value] = line.split('=').map(s => s.trim());
+        if (key && value) {
+          config[key] = value;
+        }
+      });
+      
+      userConfig = config;
+      console.log('User configuration loaded');
+    } else {
+      console.log('users.conf not found. No user will be created in deployed machines');
+      userConfig = null;
+    }
+  } catch (error) {
+    console.error('Error loading user config:', error);
+    userConfig = null;
+  }
+};
+
 // Initialize config on startup
 loadMaasConfig();
+loadUserConfig();
 
 // MAAS API helper
 const maasApi = async (endpoint, method = 'GET', data = null) => {
@@ -106,6 +136,15 @@ app.get('/api/config/status', (req, res) => {
   res.json({
     configured: !!maasConfig?.MAAS_URL && !!maasConfig?.API_KEY,
     url: maasConfig?.MAAS_URL || null
+  });
+});
+
+app.get('/api/user/config', (req, res) => {
+  res.json({
+    configured: !!userConfig,
+    username: userConfig?.USERNAME || null,
+    // Never expose the actual password for security
+    hasPassword: !!(userConfig?.PASSWORD)
   });
 });
 
@@ -180,6 +219,20 @@ app.get('/api/boot-resources', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Get user credentials for cloud-init generation
+app.get('/api/user/credentials', (req, res) => {
+  if (!userConfig) {
+    res.json({ configured: false });
+    return;
+  }
+  
+  res.json({
+    configured: true,
+    username: userConfig.USERNAME,
+    password: userConfig.PASSWORD
+  });
 });
 
 app.post('/api/machines/:id/deploy', async (req, res) => {
