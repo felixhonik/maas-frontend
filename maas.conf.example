@@ -1,0 +1,2 @@
+MAAS_URL=http://your-maas-server:5240/MAAS
+API_KEY=your-api-key-here

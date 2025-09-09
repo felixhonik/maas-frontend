@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  maas-frontend:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./maas.conf:/app/maas.conf:ro
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); http.get('http://localhost:3001/api/config/status', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - maas-network
+
+networks:
+  maas-network:
+    driver: bridge
+
+volumes:
+  data:

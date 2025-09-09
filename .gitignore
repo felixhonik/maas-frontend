@@ -1,0 +1,47 @@
+# Configuration files (local/production configs)
+maas.conf
+*.conf
+!maas.conf.example
+
+# Node modules
+node_modules/
+client/node_modules/
+
+# Build outputs
+client/dist/
+client/build/
+
+# Docker volumes and data
+data/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude workspace
+.claude/
+
+# Temporary files
+tmp/
+temp/
