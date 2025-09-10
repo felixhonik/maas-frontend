@@ -78,6 +78,32 @@ export const useTags = () => {
   return { tags, loading, error, refetch: fetchTags };
 };
 
+export const usePools = () => {
+  const [pools, setPools] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchPools = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await maasApi.getPools();
+      setPools(data);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      setPools([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPools();
+  }, [fetchPools]);
+
+  return { pools, loading, error, refetch: fetchPools };
+};
+
 export const useBootResources = () => {
   const [bootResources, setBootResources] = useState([]);
   const [loading, setLoading] = useState(true);

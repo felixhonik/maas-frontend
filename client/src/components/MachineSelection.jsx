@@ -49,7 +49,7 @@ const MachineSelection = ({ machines, selectedMachines, onMachinesChange, requir
   if (availableMachines.length === 0) {
     return (
       <Alert severity="warning">
-        No machines are available for deployment. All machines must be in "Ready" status.
+        No machines are available for deployment from the configured pools. All machines must be in "Ready" status and belong to the configured resource pools.
       </Alert>
     );
   }
@@ -87,6 +87,7 @@ const MachineSelection = ({ machines, selectedMachines, onMachinesChange, requir
               </TableCell>
               <TableCell>Hostname</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Pool</TableCell>
               <TableCell>Architecture</TableCell>
               <TableCell>CPU/Memory</TableCell>
               <TableCell>Tags</TableCell>
@@ -120,6 +121,14 @@ const MachineSelection = ({ machines, selectedMachines, onMachinesChange, requir
                       label={machine.status_name} 
                       color={getStatusColor(machine.status_name)}
                       size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={machine.pool?.name || 'default'} 
+                      variant="outlined"
+                      size="small"
+                      color="primary"
                     />
                   </TableCell>
                   <TableCell>

@@ -6,9 +6,14 @@ A Docker-based web frontend for MAAS (Metal as a Service) that enables full prov
 
 - **Multi-step provisioning wizard** with intuitive UI
 - **Tag-based machine filtering** for targeted deployments
+- **Pool-based machine filtering** to show only machines from specific resource pools
 - **Live data from MAAS server** with real-time updates
 - **Batch machine deployment** with customizable options
+- **Configurable user credentials** for deployed machines
+- **Machine status dashboard** with broken machines detection
+- **Visual status charts** showing machine distribution and health
 - **Docker containerized** for easy deployment
+- **Network accessible** from any host (not just localhost)
 - **Responsive Material-UI design**
 
 ## Quick Start
@@ -25,7 +30,10 @@ Edit `maas.conf` with your MAAS server details:
 ```
 MAAS_URL=http://your-maas-server:5240/MAAS
 API_KEY=your-api-key-here
+POOLS=default
 ```
+
+**Optional**: Add `POOLS` setting to filter machines by resource pools. Comma-separated list of pool names. If not specified, only machines from the "default" pool will be shown.
 
 ### 2. Configure User Credentials (Optional)
 
@@ -53,7 +61,7 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-The application will be available at http://localhost:3001
+The application will be available at http://localhost:3001 or from any host that can access your Docker server at http://your-host-ip:3001
 
 ### 4. Development Setup
 
@@ -73,6 +81,16 @@ This starts:
 
 ## Usage
 
+### Dashboard Overview
+
+The main dashboard provides:
+- **Machine statistics**: Total, Ready, Deployed, and Broken machine counts
+- **Status pie chart**: Visual distribution of machine states
+- **Broken machines table**: Detailed view of machines requiring attention (shows first 3, expandable to full list)
+- **Recent deployments**: History of provisioning activities with current status
+
+### Provisioning Workflow
+
 1. **Open the application** in your browser
 2. **Click the + button** to start the provisioning wizard
 3. **Select tags** to filter machines (optional)
@@ -82,9 +100,10 @@ This starts:
 
 ## API Endpoints
 
-- `GET /api/config/status` - Check MAAS configuration
-- `GET /api/machines` - List all machines
+- `GET /api/config/status` - Check MAAS configuration (includes configured pools)
+- `GET /api/machines` - List machines (filtered by configured pools)
 - `GET /api/tags` - List all tags
+- `GET /api/pools` - List available resource pools
 - `GET /api/user/config` - Get current user configuration (without password)
 - `GET /api/user/credentials` - Get user credentials for cloud-init generation
 - `POST /api/machines/:id/deploy` - Deploy a machine
@@ -98,6 +117,28 @@ To get your MAAS API key:
 2. Go to your user profile (top right)
 3. Find the "API keys" section
 4. Copy your existing key or generate a new one
+
+### Resource Pool Filtering
+
+The system can filter machines by MAAS resource pools:
+
+- **Configuration**: Add `POOLS=pool1,pool2,default` to `maas.conf`
+- **Default behavior**: Shows only machines from "default" pool if POOLS not specified
+- **Multiple pools**: Comma-separated list (e.g., `POOLS=weka,default,production`)
+- **Pool display**: Each machine shows its pool in the interface
+- **Real-time filtering**: Server filters machines before sending to frontend
+
+Example pool configurations:
+```bash
+# Show only default pool machines
+POOLS=default
+
+# Show machines from multiple pools
+POOLS=weka,default,production
+
+# Show all production and staging environments
+POOLS=prod-west,prod-east,staging
+```
 
 ### User Credentials
 
@@ -149,6 +190,7 @@ The included `docker-compose.yml` provides:
 - Volume mounting for configuration
 - Automatic restart on failure
 - Network isolation
+- External network access (binds to 0.0.0.0:3001)
 
 ## Architecture
 
@@ -175,8 +217,12 @@ maas-front/
 ├── client/                 # React frontend
 │   ├── src/
 │   │   ├── components/     # UI components
+│   │   │   ├── ProvisioningWizard.jsx
+│   │   │   ├── MachineStatusChart.jsx
+│   │   │   ├── BrokenMachinesTable.jsx
+│   │   │   └── MachineSelection.jsx
 │   │   ├── hooks/         # Custom React hooks
-│   │   └── services/      # API client
+│   │   └── services/      # API client and cloud-init
 ├── server.js              # Express backend
 ├── maas.conf.example      # MAAS configuration template
 ├── users.conf.example     # User credentials template

@@ -17,6 +17,8 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
 import ProvisioningWizard from './components/ProvisioningWizard';
+import MachineStatusChart from './components/MachineStatusChart';
+import BrokenMachinesTable from './components/BrokenMachinesTable';
 import { useMaasConfig, useMachines } from './hooks/useMaasData';
 
 const theme = createTheme({
@@ -72,6 +74,16 @@ function App() {
   
   const readyMachines = machines?.filter(m => m.status_name === 'Ready') || [];
   const deployedMachines = machines?.filter(m => m.status_name === 'Deployed') || [];
+  
+  // Broken machines include failed states and error conditions
+  const brokenMachines = machines?.filter(m => 
+    m.status_name === 'Failed deployment' || 
+    m.status_name === 'Failed testing' ||
+    m.status_name === 'Failed commissioning' ||
+    m.status_name === 'Failed' ||
+    m.status_name === 'Broken' ||
+    m.status_name === 'Error'
+  ) || [];
 
   return (
     <ThemeProvider theme={theme}>
@@ -108,13 +120,21 @@ function App() {
           </Alert>
         )}
 
+        {config?.configured && config?.pools && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Showing machines from pools: <strong>{config.pools.join(', ')}</strong>
+            {config.pools.length === 1 && config.pools[0] === 'default' && 
+              ' (Add POOLS setting to maas.conf to filter by specific pools)'}
+          </Alert>
+        )}
+
         {hasError && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {machinesError}
           </Alert>
         )}
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -157,6 +177,44 @@ function App() {
                   {deployedMachines.length}
                 </Typography>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Broken Machines
+              </Typography>
+              {isLoading ? (
+                <CircularProgress size={24} />
+              ) : (
+                <Typography variant="h4" color="error.main">
+                  {brokenMachines.length}
+                </Typography>
+              )}
+              {!isLoading && brokenMachines.length > 0 && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Requires attention
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* Machine Status Overview */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 3, mb: 4 }}>
+          {/* Broken Machines Table */}
+          <Box>
+            <BrokenMachinesTable machines={machines} />
+          </Box>
+          
+          {/* Status Pie Chart */}
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Machine Status Distribution
+              </Typography>
+              <MachineStatusChart machines={machines} />
             </CardContent>
           </Card>
         </Box>

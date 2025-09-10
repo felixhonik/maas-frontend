@@ -41,6 +41,12 @@ export const maasApi = {
     return response.data;
   },
 
+  // Pools
+  getPools: async () => {
+    const response = await api.get('/pools');
+    return response.data;
+  },
+
   // Boot sources and resources
   getBootSources: async () => {
     const response = await api.get('/boot-sources');

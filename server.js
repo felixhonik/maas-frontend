@@ -133,9 +133,14 @@ const maasApi = async (endpoint, method = 'GET', data = null) => {
 
 // API Routes
 app.get('/api/config/status', (req, res) => {
+  const configuredPools = maasConfig?.POOLS ? 
+    maasConfig.POOLS.split(',').map(p => p.trim()) : 
+    ['default'];
+    
   res.json({
     configured: !!maasConfig?.MAAS_URL && !!maasConfig?.API_KEY,
-    url: maasConfig?.MAAS_URL || null
+    url: maasConfig?.MAAS_URL || null,
+    pools: configuredPools
   });
 });
 
@@ -188,7 +193,24 @@ app.get('/api/config/defaults', async (req, res) => {
 app.get('/api/machines', async (req, res) => {
   try {
     const machines = await maasApi('machines/');
-    res.json(machines);
+    
+    // Get configured pools from MAAS config, default to "default" if not specified
+    const configuredPools = maasConfig?.POOLS ? 
+      maasConfig.POOLS.split(',').map(p => p.trim()) : 
+      ['default'];
+    
+    console.log('Configured pools:', configuredPools);
+    
+    // Filter machines by configured pools
+    const filteredMachines = machines.filter(machine => {
+      // If machine has no pool info, assume it's in default pool
+      const machinePool = machine.pool?.name || 'default';
+      return configuredPools.includes(machinePool);
+    });
+    
+    console.log(`Filtered ${filteredMachines.length}/${machines.length} machines by pools: ${configuredPools.join(', ')}`);
+    
+    res.json(filteredMachines);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -198,6 +220,15 @@ app.get('/api/tags', async (req, res) => {
   try {
     const tags = await maasApi('tags/');
     res.json(tags);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/pools', async (req, res) => {
+  try {
+    const pools = await maasApi('resource-pools/');
+    res.json(pools);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -274,6 +305,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'client/dist/index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on http://0.0.0.0:${PORT}`);
 });
