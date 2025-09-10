@@ -20,6 +20,7 @@ RUN npm install --omit=dev && npm cache clean --force
 
 # Copy backend code
 COPY server.js ./
+COPY services/ ./services/
 
 # Copy built frontend
 COPY --from=frontend-build /app/client/dist ./client/dist
