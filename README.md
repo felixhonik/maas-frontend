@@ -12,6 +12,9 @@ A Docker-based web frontend for MAAS (Metal as a Service) that enables full prov
 - **Configurable user credentials** for deployed machines
 - **Machine status dashboard** with broken machines detection
 - **Visual status charts** showing machine distribution and health
+- **Comprehensive deployment tracking** - shows all MAAS deployments (app-initiated and manual)
+- **Real-time deployment monitoring** with automatic status updates every 30 seconds
+- **Pool-aware deployment history** with visual source indicators and expandable view
 - **API-managed provisioning** with tag-based auto-selection
 - **Advanced tag matching** (ALL/ANY modes) for flexible machine selection
 - **Resource validation** with "Not enough resources" error handling
@@ -90,7 +93,11 @@ The main dashboard provides:
 - **Machine statistics**: Total, Ready, Deployed, and Broken machine counts
 - **Status pie chart**: Visual distribution of machine states
 - **Broken machines table**: Detailed view of machines requiring attention (shows first 3, expandable to full list)
-- **Recent deployments**: History of provisioning activities with current status
+- **Recent deployments**: Comprehensive history showing all MAAS deployments (both app-initiated and manual)
+  - Shows 5 deployments initially with "Show More" to expand to 10
+  - Includes deployments from all configured pools
+  - Real-time status updates every 30 seconds
+  - Visual indicators for deployment source (MAAS badge) and pool information
 
 ### Provisioning Workflow
 
@@ -113,12 +120,14 @@ The main dashboard provides:
 
 ### Machine Deployment
 - `POST /api/machines/:id/deploy` - Deploy a single machine
+- `GET /api/machines/:id/status` - Get deployment status for a specific machine
+- `GET /api/deployments/recent` - **NEW**: Get recent deployments from all machines in configured pools
+  - Returns deployments with status: Deployed, Deploying, Failed deployment
+  - Filtered by configured pools (respects POOLS setting)
+  - Limited to 20 most recent deployments
 - `POST /api/provision` - **NEW**: Batch provisioning API for multiple machines
 - `GET /api/provision` - **NEW**: List all provisioning jobs
 - `GET /api/provision/:jobId` - **NEW**: Get provisioning job status
-
-### Machine Status
-- `GET /api/machines/:id/status` - Get machine deployment status
 
 ## API-Managed Provisioning
 

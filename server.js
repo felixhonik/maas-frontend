@@ -301,6 +301,60 @@ app.get('/api/machines/:id/status', async (req, res) => {
   }
 });
 
+// Get recent deployments from all machines (including manual MAAS deployments)
+app.get('/api/deployments/recent', async (req, res) => {
+  try {
+    const machines = await maasApi('machines/');
+    
+    // Get configured pools from MAAS config, default to "default" if not specified
+    const configuredPools = maasConfig?.POOLS ? 
+      maasConfig.POOLS.split(',').map(p => p.trim()) : 
+      ['default'];
+    
+    // Filter machines by configured pools
+    const filteredMachines = machines.filter(machine => {
+      // If machine has no pool info, assume it's in default pool
+      const machinePool = machine.pool?.name || 'default';
+      return configuredPools.includes(machinePool);
+    });
+    
+    // Find machines that have been deployed recently or are currently deploying
+    const recentDeployments = filteredMachines
+      .filter(machine => {
+        // Include machines that are deployed, deploying, or failed deployment
+        return ['Deployed', 'Deploying', 'Failed deployment'].includes(machine.status_name);
+      })
+      .map(machine => {
+        // Create a deployment record similar to app-initiated ones
+        return {
+          id: `maas-${machine.system_id}`,
+          machine: machine.hostname || machine.fqdn || machine.system_id,
+          result: {
+            system_id: machine.system_id,
+            hostname: machine.hostname,
+            status_name: machine.status_name
+          },
+          timestamp: machine.updated || machine.created || new Date().toISOString(),
+          source: 'maas', // Indicate this came from MAAS directly
+          status_name: machine.status_name,
+          status_message: machine.status_message,
+          pool: machine.pool?.name || 'default'
+        };
+      })
+      // Sort by timestamp (most recent first)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      // Limit to last 20 deployments
+      .slice(0, 20);
+    
+    console.log(`Found ${recentDeployments.length} recent deployments in pools: ${configuredPools.join(', ')}`);
+    
+    res.json(recentDeployments);
+  } catch (error) {
+    console.error('Error fetching recent deployments:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // In-memory storage for provisioning jobs (in production, use Redis or database)
 const provisioningJobs = new Map();
 let jobIdCounter = 1;

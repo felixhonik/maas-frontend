@@ -19,7 +19,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import ProvisioningWizard from './components/ProvisioningWizard';
 import MachineStatusChart from './components/MachineStatusChart';
 import BrokenMachinesTable from './components/BrokenMachinesTable';
-import { useMaasConfig, useMachines } from './hooks/useMaasData';
+import { useMaasConfig, useMachines, useRecentDeployments } from './hooks/useMaasData';
 
 const theme = createTheme({
   palette: {
@@ -33,23 +33,53 @@ const theme = createTheme({
 function App() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [deploymentHistory, setDeploymentHistory] = useState([]);
+  const [showAllDeployments, setShowAllDeployments] = useState(false);
   
   const { config, loading: configLoading, error: configError } = useMaasConfig();
   const { machines, loading: machinesLoading, error: machinesError, refetch: refetchMachines } = useMachines();
+  const { deployments: maasDeployments, loading: deploymentsLoading, error: deploymentsError, refetch: refetchDeployments } = useRecentDeployments();
 
-  // Auto-refresh machines data every 30 seconds if there are active deployments
+  // Merge app-initiated deployments with MAAS deployments
+  const allDeployments = React.useMemo(() => {
+    // Create a map to avoid duplicates (app-initiated deployments take precedence)
+    const deploymentMap = new Map();
+    
+    // Add MAAS deployments first
+    maasDeployments.forEach(deployment => {
+      deploymentMap.set(deployment.result.system_id, {
+        ...deployment,
+        source: deployment.source || 'maas'
+      });
+    });
+    
+    // Add app-initiated deployments (these will override MAAS ones for same machine)
+    deploymentHistory.forEach(deployment => {
+      deploymentMap.set(deployment.result.system_id, {
+        ...deployment,
+        source: 'app'
+      });
+    });
+    
+    // Convert back to array and sort by timestamp
+    return Array.from(deploymentMap.values())
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  }, [deploymentHistory, maasDeployments]);
+
+  // Auto-refresh machines and deployments data every 30 seconds if there are active deployments
   useEffect(() => {
-    if (deploymentHistory.length === 0) return;
+    if (allDeployments.length === 0) return;
 
     const interval = setInterval(() => {
       refetchMachines();
+      refetchDeployments();
     }, 30000); // 30 seconds
 
     return () => clearInterval(interval);
-  }, [deploymentHistory.length, refetchMachines]);
+  }, [allDeployments.length, refetchMachines, refetchDeployments]);
 
   const handleRefresh = () => {
     refetchMachines();
+    refetchDeployments();
   };
 
   const handleWizardClose = (deploymentResults = null) => {
@@ -69,8 +99,8 @@ function App() {
     }
   };
 
-  const isLoading = configLoading || machinesLoading;
-  const hasError = configError || machinesError;
+  const isLoading = configLoading || machinesLoading || deploymentsLoading;
+  const hasError = configError || machinesError || deploymentsError;
   
   const readyMachines = machines?.filter(m => m.status_name === 'Ready') || [];
   const deployedMachines = machines?.filter(m => m.status_name === 'Deployed') || [];
@@ -130,7 +160,7 @@ function App() {
 
         {hasError && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            {machinesError}
+            {machinesError || deploymentsError}
           </Alert>
         )}
 
@@ -219,13 +249,16 @@ function App() {
           </Card>
         </Box>
 
-        {deploymentHistory.length > 0 && (
+        {allDeployments.length > 0 && (
           <Card sx={{ mb: 4 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Recent Deployments
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                  (Includes all MAAS deployments in configured pools)
+                </Typography>
               </Typography>
-              {deploymentHistory.slice(0, 5).map(deployment => {
+              {allDeployments.slice(0, showAllDeployments ? 10 : 5).map((deployment, index, displayedDeployments) => {
                 const machine = machines?.find(m => m.system_id === deployment.result.system_id);
                 const currentStatus = machine?.status_name || 'Unknown';
                 const statusColor = currentStatus === 'Deployed' ? 'success.main' : 
@@ -238,12 +271,38 @@ function App() {
                     justifyContent: 'space-between', 
                     alignItems: 'center',
                     py: 1,
-                    borderBottom: deployment !== deploymentHistory.slice(0, 5)[deploymentHistory.slice(0, 5).length - 1] ? '1px solid' : 'none',
+                    borderBottom: index !== displayedDeployments.length - 1 ? '1px solid' : 'none',
                     borderColor: 'divider'
                   }}>
                     <Box>
                       <Typography variant="body2" fontWeight="medium">
                         {deployment.machine}
+                        {deployment.source === 'maas' && (
+                          <Typography component="span" variant="caption" sx={{ 
+                            ml: 1, 
+                            px: 1, 
+                            py: 0.25, 
+                            backgroundColor: 'info.light', 
+                            color: 'info.contrastText',
+                            borderRadius: 1,
+                            fontSize: '0.65rem'
+                          }}>
+                            MAAS
+                          </Typography>
+                        )}
+                        {deployment.pool && deployment.pool !== 'default' && (
+                          <Typography component="span" variant="caption" sx={{ 
+                            ml: 1, 
+                            px: 1, 
+                            py: 0.25, 
+                            backgroundColor: 'grey.200', 
+                            color: 'grey.800',
+                            borderRadius: 1,
+                            fontSize: '0.65rem'
+                          }}>
+                            {deployment.pool}
+                          </Typography>
+                        )}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Started: {new Date(deployment.timestamp).toLocaleString()}
@@ -260,6 +319,19 @@ function App() {
                   </Box>
                 );
               })}
+              
+              {/* Show more/less button */}
+              {allDeployments.length > 5 && (
+                <Box sx={{ mt: 2, textAlign: 'center' }}>
+                  <Button 
+                    variant="text" 
+                    size="small"
+                    onClick={() => setShowAllDeployments(!showAllDeployments)}
+                  >
+                    {showAllDeployments ? 'Show Less' : `Show More (${Math.min(allDeployments.length - 5, 5)} more)`}
+                  </Button>
+                </Box>
+              )}
             </CardContent>
           </Card>
         )}

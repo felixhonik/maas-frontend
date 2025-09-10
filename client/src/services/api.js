@@ -57,6 +57,12 @@ export const maasApi = {
     const response = await api.get('/boot-resources');
     return response.data;
   },
+
+  // Get recent deployments from MAAS (including manual deployments)
+  getRecentDeployments: async () => {
+    const response = await api.get('/deployments/recent');
+    return response.data;
+  },
 };
 
 export default api;

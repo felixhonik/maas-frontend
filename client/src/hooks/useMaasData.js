@@ -155,3 +155,29 @@ export const useMaasDefaults = () => {
 
   return { defaults, loading, error, refetch: fetchDefaults };
 };
+
+export const useRecentDeployments = () => {
+  const [deployments, setDeployments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchDeployments = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await maasApi.getRecentDeployments();
+      setDeployments(data);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      setDeployments([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDeployments();
+  }, [fetchDeployments]);
+
+  return { deployments, loading, error, refetch: fetchDeployments };
+};
