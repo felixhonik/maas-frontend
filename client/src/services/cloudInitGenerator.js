@@ -323,6 +323,14 @@ const generateTagBasedEnhancements = (tags, osType = 'ubuntu') => {
     tag.toLowerCase().includes('mellanox')
   );
   
+  // Add debug logging for ConnectX tag detection
+  enhancements.runcmd.push(
+    `echo "=== ConnectX Tag Detection Debug ===" | tee -a /var/log/cloud-init-userdata.log`,
+    `echo "All machine tags: ${tags.join(', ')}" | tee -a /var/log/cloud-init-userdata.log`,
+    `echo "ConnectX tags found: ${connectxTags.join(', ')}" | tee -a /var/log/cloud-init-userdata.log`,
+    `echo "ConnectX tags count: ${connectxTags.length}" | tee -a /var/log/cloud-init-userdata.log`
+  );
+  
   if (connectxTags.length > 0) {
     // Add OS-specific packages for building drivers
     if (isRocky) {
@@ -459,6 +467,10 @@ echo "ConnectX NIC and DOCA configuration completed successfully" | tee -a /var/
       'echo "=== ConnectX NIC and DOCA Installation ===" | tee -a /var/log/cloud-init-userdata.log',
       'chmod +x /tmp/install_connectx_doca.sh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
       '/tmp/install_connectx_doca.sh 2>&1 | tee -a /var/log/cloud-init-userdata.log'
+    );
+  } else {
+    enhancements.runcmd.push(
+      'echo "=== No ConnectX/Mellanox tags found - DOCA installation skipped ===" | tee -a /var/log/cloud-init-userdata.log'
     );
   }
 
