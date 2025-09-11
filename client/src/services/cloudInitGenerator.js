@@ -339,18 +339,22 @@ echo "Starting ConnectX NIC and DOCA installation" | tee -a /var/log/cloud-init-
 cd /tmp
 
 # Detect OS with more robust detection
+echo "=== OS Detection Debug ===" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
 if [ -f /etc/os-release ]; then
+    echo "Found /etc/os-release, parsing..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    cat /etc/os-release | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
     source /etc/os-release
     OS_NAME=$ID
     OS_VERSION=$VERSION_ID
     OS_MAJOR_VERSION=\${VERSION_ID%%.*}
-    echo "Detected OS: $OS_NAME $OS_VERSION (Major: $OS_MAJOR_VERSION)" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    echo "Parsed values: OS_NAME='$OS_NAME', OS_VERSION='$OS_VERSION', OS_MAJOR_VERSION='$OS_MAJOR_VERSION'" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
 else
-    echo "Cannot detect OS, defaulting to Ubuntu" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    echo "Cannot detect OS (/etc/os-release not found), defaulting to Ubuntu" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
     OS_NAME="ubuntu"
     OS_VERSION="22.04"
     OS_MAJOR_VERSION="22"
 fi
+echo "Final OS detection: $OS_NAME $OS_VERSION (Major: $OS_MAJOR_VERSION)" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
 
 # Install DOCA-all based on OS
 echo "Installing DOCA-all for ConnectX NICs..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
@@ -360,7 +364,16 @@ if [[ "$OS_NAME" == "ubuntu" ]]; then
     if [[ "$OS_VERSION" == "22.04" ]]; then
         echo "Setting up DOCA 3.1.0 for Ubuntu 22.04..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
         DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu22.04/x86_64/"
-        INSTALL_CMD="curl https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub && echo \"deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] \$DOCA_REPO_URL ./\" > /etc/apt/sources.list.d/doca.list && apt-get update && apt-get -y install doca-all"
+        echo "Using DOCA repository: $DOCA_REPO_URL" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        # Install DOCA step by step with better error handling
+        echo "Step 1: Adding Mellanox GPG key..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        curl -fsSL https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub || exit 1
+        echo "Step 2: Adding DOCA repository..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        echo "deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] $DOCA_REPO_URL ./" > /etc/apt/sources.list.d/doca.list || exit 1
+        echo "Step 3: Updating package lists..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get update 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+        echo "Step 4: Installing doca-all package..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get -y install doca-all 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
     elif [[ "$OS_VERSION" == "24.04" ]]; then
         echo "Setting up DOCA 3.1.0 for Ubuntu 24.04..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
         DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu22.04/x86_64/"
@@ -370,8 +383,18 @@ if [[ "$OS_NAME" == "ubuntu" ]]; then
         DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu20.04/x86_64/"
         INSTALL_CMD="curl https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub && echo \"deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] \$DOCA_REPO_URL ./\" > /etc/apt/sources.list.d/doca.list && apt-get update && apt-get -y install doca-all"
     else
-        echo "Ubuntu version $OS_VERSION not supported for DOCA, skipping installation" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
-        exit 0
+        echo "Ubuntu version $OS_VERSION not explicitly supported, trying Ubuntu 22.04 DOCA repository as fallback..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu22.04/x86_64/"
+        echo "Using fallback DOCA repository: $DOCA_REPO_URL" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        # Install DOCA step by step with better error handling
+        echo "Step 1: Adding Mellanox GPG key..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        curl -fsSL https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub || exit 1
+        echo "Step 2: Adding DOCA repository..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        echo "deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] $DOCA_REPO_URL ./" > /etc/apt/sources.list.d/doca.list || exit 1
+        echo "Step 3: Updating package lists..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get update 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+        echo "Step 4: Installing doca-all package..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get -y install doca-all 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
     fi
 elif [[ "$OS_NAME" == "rocky" || "$OS_NAME" == "rhel" || "$OS_NAME" == "centos" ]]; then
     if [[ "$OS_MAJOR_VERSION" == "8" ]]; then
@@ -404,14 +427,7 @@ else
     exit 0
 fi
 
-echo "Installing DOCA using repository-based approach..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
-echo "Install command: \$INSTALL_CMD" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
-
-# Execute the install command
-eval "\$INSTALL_CMD" || {
-    echo "DOCA installation failed" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
-    exit 1
-}
+# DOCA installation completed in version-specific sections above
 
 echo "DOCA-all installed successfully for ConnectX NICs" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
 
