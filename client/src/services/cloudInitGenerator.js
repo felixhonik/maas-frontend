@@ -377,11 +377,29 @@ if [[ "$OS_NAME" == "ubuntu" ]]; then
     elif [[ "$OS_VERSION" == "24.04" ]]; then
         echo "Setting up DOCA 3.1.0 for Ubuntu 24.04..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
         DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu22.04/x86_64/"
-        INSTALL_CMD="curl https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub && echo \"deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] \$DOCA_REPO_URL ./\" > /etc/apt/sources.list.d/doca.list && apt-get update && apt-get -y install doca-all"
+        echo "Using DOCA repository: $DOCA_REPO_URL (Ubuntu 22.04 repo for 24.04 compatibility)" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        # Install DOCA step by step with better error handling
+        echo "Step 1: Adding Mellanox GPG key..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        curl -fsSL https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub || exit 1
+        echo "Step 2: Adding DOCA repository..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        echo "deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] $DOCA_REPO_URL ./" > /etc/apt/sources.list.d/doca.list || exit 1
+        echo "Step 3: Updating package lists..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get update 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+        echo "Step 4: Installing doca-all package..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get -y install doca-all 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
     elif [[ "$OS_VERSION" == "20.04" ]]; then
         echo "Setting up DOCA 3.1.0 for Ubuntu 20.04..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
         DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu20.04/x86_64/"
-        INSTALL_CMD="curl https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub && echo \"deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] \$DOCA_REPO_URL ./\" > /etc/apt/sources.list.d/doca.list && apt-get update && apt-get -y install doca-all"
+        echo "Using DOCA repository: $DOCA_REPO_URL" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        # Install DOCA step by step with better error handling
+        echo "Step 1: Adding Mellanox GPG key..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        curl -fsSL https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub || exit 1
+        echo "Step 2: Adding DOCA repository..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        echo "deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] $DOCA_REPO_URL ./" > /etc/apt/sources.list.d/doca.list || exit 1
+        echo "Step 3: Updating package lists..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get update 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+        echo "Step 4: Installing doca-all package..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+        apt-get -y install doca-all 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
     else
         echo "Ubuntu version $OS_VERSION not explicitly supported, trying Ubuntu 22.04 DOCA repository as fallback..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
         DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu22.04/x86_64/"
