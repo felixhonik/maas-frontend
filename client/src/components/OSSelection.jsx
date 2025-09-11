@@ -12,6 +12,62 @@ import {
 } from '@mui/material';
 import { useMaasDefaults } from '../hooks/useMaasData';
 
+// Function to convert Synced OS names to official display names
+const getOfficialOSName = (osName) => {
+  if (!osName) return osName;
+  
+  const name = osName.toLowerCase();
+  
+  // Ubuntu versions mapping
+  if (name.includes('ubuntu/jammy') || name.includes('jammy')) {
+    return 'Ubuntu 22.04 LTS';
+  }
+  if (name.includes('ubuntu/focal') || name.includes('focal')) {
+    return 'Ubuntu 20.04 LTS';
+  }
+  if (name.includes('ubuntu/bionic') || name.includes('bionic')) {
+    return 'Ubuntu 18.04 LTS';
+  }
+  if (name.includes('ubuntu/noble') || name.includes('noble')) {
+    return 'Ubuntu 24.04 LTS';
+  }
+  if (name.includes('ubuntu/mantic') || name.includes('mantic')) {
+    return 'Ubuntu 23.10';
+  }
+  if (name.includes('ubuntu/lunar') || name.includes('lunar')) {
+    return 'Ubuntu 23.04';
+  }
+  if (name.includes('ubuntu/kinetic') || name.includes('kinetic')) {
+    return 'Ubuntu 22.10';
+  }
+  
+  // If no match found, try to clean up the name
+  if (name.includes('ubuntu/')) {
+    const series = name.split('ubuntu/')[1];
+    return `Ubuntu (${series})`;
+  }
+  
+  // For non-Ubuntu OS, return cleaned up name
+  return osName.charAt(0).toUpperCase() + osName.slice(1);
+};
+
+// Unified function to get OS display name based on type
+const getOSDisplayName = (selectedOSName, availableOS) => {
+  if (!selectedOSName || !availableOS) return selectedOSName;
+  
+  const osOption = availableOS.find(os => os.name === selectedOSName);
+  if (!osOption) return selectedOSName;
+  
+  // Unified approach based on type
+  if (osOption.type === 'Uploaded') {
+    // For uploaded images, use the title field
+    return osOption.title || osOption.name;
+  } else {
+    // For synced images, use official names
+    return getOfficialOSName(osOption.name);
+  }
+};
+
 const OSSelection = ({ selectedMachines, bootResources, loading, selectedOS, onOSChange }) => {
   const { defaults, loading: defaultsLoading } = useMaasDefaults();
   const hasTriedAutoSelect = useRef(false);
@@ -47,19 +103,24 @@ const OSSelection = ({ selectedMachines, bootResources, loading, selectedOS, onO
         osOptions.push({
           id: resource.id,
           name: resource.name,
-          title: resource.name, // Use name as title since title doesn't exist
+          title: resource.title, // Keep original title (can be null)
           architecture: resource.architecture,
           type: resource.type || 'Synced'
         });
       }
     });
 
-    // Remove duplicates by name and sort
+    // Remove duplicates by name and sort by display name
     const uniqueOS = osOptions.filter((os, index, self) => 
       index === self.findIndex(o => o.name === os.name)
     );
 
-    return uniqueOS.sort((a, b) => a.name.localeCompare(b.name));
+    // Sort by display name instead of technical name
+    return uniqueOS.sort((a, b) => {
+      const displayNameA = a.type === 'Uploaded' ? (a.title || a.name) : getOfficialOSName(a.name);
+      const displayNameB = b.type === 'Uploaded' ? (b.title || b.name) : getOfficialOSName(b.name);
+      return displayNameA.localeCompare(displayNameB);
+    });
   }, [bootResources, machineArchitectures]);
 
   // Auto-select MAAS default OS when available and conditions are met
@@ -70,6 +131,11 @@ const OSSelection = ({ selectedMachines, bootResources, loading, selectedOS, onO
       selectedOS,
       availableOSCount: availableOS.length,
       availableOSNames: availableOS.map(os => os.name),
+      availableOSDisplay: availableOS.map(os => ({
+        name: os.name,
+        type: os.type,
+        displayName: os.type === 'Uploaded' ? (os.title || os.name) : getOfficialOSName(os.name)
+      })),
       hasTriedAutoSelect: hasTriedAutoSelect.current
     });
 
@@ -179,7 +245,7 @@ const OSSelection = ({ selectedMachines, bootResources, loading, selectedOS, onO
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                       <Box>
                         <Typography variant="body2" fontWeight="medium">
-                          {os.name}
+                          {getOSDisplayName(os.name, availableOS)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {os.architecture} • {os.type}
@@ -201,7 +267,7 @@ const OSSelection = ({ selectedMachines, bootResources, loading, selectedOS, onO
                 Selection Summary:
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {selectedOS} will be deployed to {selectedMachines.length} machine{selectedMachines.length > 1 ? 's' : ''}
+                {getOSDisplayName(selectedOS, availableOS)} will be deployed to {selectedMachines.length} machine{selectedMachines.length > 1 ? 's' : ''}
               </Typography>
             </Box>
           )}

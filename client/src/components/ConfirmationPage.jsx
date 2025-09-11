@@ -20,11 +20,68 @@ import {
   Numbers as CountIcon
 } from '@mui/icons-material';
 
+// Function to convert Synced OS names to official display names
+const getOfficialOSName = (osName) => {
+  if (!osName) return osName;
+  
+  const name = osName.toLowerCase();
+  
+  // Ubuntu versions mapping
+  if (name.includes('ubuntu/jammy') || name.includes('jammy')) {
+    return 'Ubuntu 22.04 LTS';
+  }
+  if (name.includes('ubuntu/focal') || name.includes('focal')) {
+    return 'Ubuntu 20.04 LTS';
+  }
+  if (name.includes('ubuntu/bionic') || name.includes('bionic')) {
+    return 'Ubuntu 18.04 LTS';
+  }
+  if (name.includes('ubuntu/noble') || name.includes('noble')) {
+    return 'Ubuntu 24.04 LTS';
+  }
+  if (name.includes('ubuntu/mantic') || name.includes('mantic')) {
+    return 'Ubuntu 23.10';
+  }
+  if (name.includes('ubuntu/lunar') || name.includes('lunar')) {
+    return 'Ubuntu 23.04';
+  }
+  if (name.includes('ubuntu/kinetic') || name.includes('kinetic')) {
+    return 'Ubuntu 22.10';
+  }
+  
+  // If no match found, try to clean up the name
+  if (name.includes('ubuntu/')) {
+    const series = name.split('ubuntu/')[1];
+    return `Ubuntu (${series})`;
+  }
+  
+  // For non-Ubuntu OS, return cleaned up name
+  return osName.charAt(0).toUpperCase() + osName.slice(1);
+};
+
+// Unified function to get OS display name based on type
+const getOSDisplayName = (selectedOSName, bootResources) => {
+  if (!selectedOSName || !bootResources) return selectedOSName;
+  
+  const osResource = bootResources.find(resource => resource.name === selectedOSName);
+  if (!osResource) return selectedOSName;
+  
+  // Unified approach based on type
+  if (osResource.type === 'Uploaded') {
+    // For uploaded images, use the title field
+    return osResource.title || osResource.name;
+  } else {
+    // For synced images, use official names
+    return getOfficialOSName(osResource.name);
+  }
+};
+
 const ConfirmationPage = ({ 
   machineCount, 
   selectedMachines, 
   selectedOS, 
-  deploymentConfig 
+  deploymentConfig,
+  bootResources 
 }) => {
   return (
     <Box>
@@ -68,7 +125,7 @@ const ConfirmationPage = ({
                 <Typography variant="h6">Operating System</Typography>
               </Box>
               <Typography variant="h6" color="primary.main">
-                {selectedOS}
+                {getOSDisplayName(selectedOS, bootResources)}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 will be deployed to all machines
@@ -140,7 +197,7 @@ const ConfirmationPage = ({
                   Operating System:
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {selectedOS}
+                  {getOSDisplayName(selectedOS, bootResources)}
                 </Typography>
               </Box>
 
@@ -209,7 +266,7 @@ const ConfirmationPage = ({
                 Deployment Summary
               </Typography>
               <Typography variant="body1">
-                <strong>{selectedOS}</strong> will be deployed to <strong>{machineCount} machine{machineCount > 1 ? 's' : ''}</strong>:
+                <strong>{getOSDisplayName(selectedOS, bootResources)}</strong> will be deployed to <strong>{machineCount} machine{machineCount > 1 ? 's' : ''}</strong>:
               </Typography>
               <Typography variant="body2" sx={{ mt: 1 }}>
                 {selectedMachines.map(m => m.hostname || m.fqdn || 'Unknown').join(', ')}

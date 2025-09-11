@@ -18,6 +18,10 @@ A Docker-based web frontend for MAAS (Metal as a Service) that enables full prov
 - **API-managed provisioning** with tag-based auto-selection
 - **Advanced tag matching** (ALL/ANY modes) for flexible machine selection
 - **Resource validation** with "Not enough resources" error handling
+- **User-friendly OS selection** with unified display names:
+  - Uploaded images: Show custom titles (e.g., "Rocky 10.0 Custom x86_64")
+  - Synced images: Show official names (e.g., "Ubuntu 22.04 LTS")
+  - Alphabetically sorted by display name for easy selection
 - **Docker containerized** for easy deployment
 - **Network accessible** from any host (not just localhost)
 - **Responsive Material-UI design**
@@ -105,8 +109,13 @@ The main dashboard provides:
 2. **Click the + button** to start the provisioning wizard
 3. **Select tags** to filter machines (optional)
 4. **Choose machines** from the filtered list
-5. **Configure deployment** options (OS, cloud-init)
-6. **Deploy** and monitor progress
+5. **Select operating system** from available boot resources
+   - **Synced OS images**: Display official names (e.g., "Ubuntu 22.04 LTS", "Ubuntu 20.04 LTS")
+   - **Uploaded custom images**: Display custom titles (e.g., "Rocky 10.0 Custom x86_64")
+   - **Alphabetically sorted** by display name for easy browsing
+   - **Architecture and type indicators** shown for each option
+6. **Configure deployment options** (cloud-init, tags)
+7. **Review and deploy** - machines will be deployed with generated cloud-init
 
 ## API Endpoints
 

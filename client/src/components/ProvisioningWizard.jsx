@@ -202,6 +202,7 @@ const ProvisioningWizard = ({ open, onClose, machines }) => {
             selectedMachines={selectedMachines}
             selectedOS={selectedOS}
             deploymentConfig={deploymentConfig}
+            bootResources={bootResources}
           />
         );
       case 5:
