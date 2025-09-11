@@ -117,6 +117,52 @@ The main dashboard provides:
 6. **Configure deployment options** (cloud-init, tags)
 7. **Review and deploy** - machines will be deployed with generated cloud-init
 
+## Tag-Based Machine Configuration
+
+The MAAS Frontend automatically applies specialized configurations based on machine tags. Add these tags to machines in MAAS to enable specific features:
+
+### **System Performance Tags:**
+- **`high-cpu`**: Enables CPU performance optimizations (performance governor)
+- **`high-memory`**: Applies memory optimizations (swappiness, cache pressure tuning)
+- **`amd64-arch`**: Installs AMD64 microcode updates
+
+### **Network Hardware Tags:**
+- **`connectx`** or **`mellanox`**: Loads ConnectX NIC drivers (mlx5_core, mlx5_ib)
+- **`bcm57508`**: Configures Broadcom BCM57508 network driver
+- **`intel-nic`** or **`intel-ethernet`**: Optimizes Intel NIC drivers (e1000e, igb, ixgbe, i40e, ice)
+
+### **Storage & System Tags:**
+- **`nvme_core`**: Configures NVME multipath settings
+- **`serial_console`**: Enables serial console access
+- **`virtual`**: Installs virtual machine guest tools (qemu-guest-agent, open-vm-tools)
+
+### **Software Installation Tags:**
+- **`doca`** *(case insensitive)*: Installs NVIDIA DOCA (Data Center Infrastructure on a Chip Architecture)
+  - **Ubuntu**: Installs `doca-all` package from Mellanox repositories
+  - **Rocky/RHEL**: Installs `doca-ofed` package from Mellanox repositories
+  - **Supported OS**: Ubuntu 20.04/22.04/24.04, Rocky/RHEL 8/9/10
+  - **Automatic repository setup** with GPG key verification
+  - **Full installation logging** to `/var/log/cloud-init-userdata.log`
+
+### **Usage Examples:**
+```bash
+# In MAAS, add these tags to machines:
+high-cpu,doca          # High-performance machine with DOCA
+connectx,doca          # ConnectX NIC with DOCA installation  
+virtual,high-memory    # VM with memory optimizations
+bcm57508,serial_console # Broadcom NIC with serial access
+```
+
+### **Default System Tools:**
+All deployed machines automatically receive a comprehensive set of system tools:
+- **Network**: `lldpd`, `net-tools`, `ibverbs-utils`, `ibutils`, `infiniband-diags`, `rdma-core`
+- **Storage**: `nvme-cli`, `smartmontools`, `fio`, `iozone3` 
+- **Debugging**: `strace`, `ltrace`, `crash`, `tshark`, `termshark`, `htop`, `atop`
+- **System**: `kdump-tools`/`kexec-tools`, `ipmitool`, `screen`, `tmux`
+- **Optimized kernel settings**: Weka-optimized sysctl configuration in `/etc/sysctl.d/99-weka.conf`
+
+All configurations are applied automatically during deployment with comprehensive logging for troubleshooting.
+
 ## API Endpoints
 
 ### Configuration & Discovery
