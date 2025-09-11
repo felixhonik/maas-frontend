@@ -21,7 +21,24 @@ const generateBaseCloudInit = (osType = 'ubuntu', userCredentials = null) => {
       'openssh-server',
       'sudo', // Ensure sudo is installed on Rocky
       'tar',
-      'gzip'
+      'gzip',
+      // Additional system tools
+      'lldpd',
+      'nvme-cli',
+      'strace',
+      'ltrace',
+      'crash',
+      'kexec-tools', // Rocky equivalent of kdump-tools
+      'ibverbs-utils',
+      'infiniband-diags',
+      'screen',
+      'tmux',
+      'ipmitool',
+      'rdma-core',
+      'wireshark-cli', // Rocky equivalent of tshark
+      'fio',
+      'smartmontools',
+      'atop'
     ] : [
       'curl',
       'wget',
@@ -29,7 +46,27 @@ const generateBaseCloudInit = (osType = 'ubuntu', userCredentials = null) => {
       'htop',
       'vim',
       'net-tools',
-      'openssh-server'
+      'openssh-server',
+      // Additional system tools
+      'lldpd',
+      'nvme-cli',
+      'strace',
+      'ltrace',
+      'crash',
+      'kdump-tools',
+      'ibverbs-utils',
+      'ibutils',
+      'infiniband-diags',
+      'screen',
+      'tmux',
+      'ipmitool',
+      'rdma-core',
+      'tshark',
+      'termshark',
+      'fio',
+      'smartmontools',
+      'iozone3',
+      'atop'
     ],
     
     // Basic system configuration
@@ -142,6 +179,26 @@ const generateBaseCloudInit = (osType = 'ubuntu', userCredentials = null) => {
   return {
     ...config,
     
+    // System configuration files
+    write_files: [
+      {
+        content: `# installed from platform cloud-init
+kernel.numa_balancing=0
+kernel.softlockup_all_cpu_backtrace=1
+kernel.panic = 300
+net.ipv4.conf.all.arp_announce = 2
+net.ipv4.conf.all.arp_filter = 1
+net.ipv4.conf.all.arp_ignore = 1
+net.ipv4.conf.default.arp_announce = 2
+net.ipv4.conf.default.arp_filter = 1
+net.ipv4.conf.default.arp_ignore = 1
+net.ipv4.conf.all.ignore_routes_with_linkdown = 1
+net.ipv4.conf.default.ignore_routes_with_linkdown = 1
+`,
+        path: '/etc/sysctl.d/99-weka.conf'
+      }
+    ],
+    
     // OS-specific run commands with proper logging setup
     runcmd: [
       'mkdir -p /var/log',
@@ -150,6 +207,18 @@ const generateBaseCloudInit = (osType = 'ubuntu', userCredentials = null) => {
       'echo "=== MAAS Cloud-Init Deployment Started at $(date) ===" | tee -a /var/log/cloud-init-userdata.log',
       'echo "MAAS deployment started at $(date)" | tee /var/log/maas-deployment.log',
       `echo "Configuring ${isRocky ? 'Rocky Linux' : 'Ubuntu'} system..." | tee -a /var/log/cloud-init-userdata.log`,
+      '# Enable and configure additional system services',
+      'systemctl enable lldpd 2>&1 | tee -a /var/log/cloud-init-userdata.log || true',
+      'systemctl start lldpd 2>&1 | tee -a /var/log/cloud-init-userdata.log || true',
+      '# Configure kdump/kexec if available',
+      `${isRocky ? 'systemctl enable kdump 2>&1 | tee -a /var/log/cloud-init-userdata.log || true' : 'systemctl enable kdump-tools 2>&1 | tee -a /var/log/cloud-init-userdata.log || true'}`,
+      '# Enable SMART monitoring',
+      'systemctl enable smartd 2>&1 | tee -a /var/log/cloud-init-userdata.log || true',
+      'systemctl start smartd 2>&1 | tee -a /var/log/cloud-init-userdata.log || true',
+      '# Apply sysctl configuration',
+      'sysctl -p /etc/sysctl.d/99-weka.conf 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+      'echo "Weka sysctl configuration applied" | tee -a /var/log/cloud-init-userdata.log',
+      'echo "Additional system tools configured" | tee -a /var/log/cloud-init-userdata.log',
       ...userSpecificCommands
     ]
   };
