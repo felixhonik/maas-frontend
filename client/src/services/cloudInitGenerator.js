@@ -332,6 +332,108 @@ const generateTagBasedEnhancements = (tags, osType = 'ubuntu') => {
     );
   }
 
+  // DOCA installation support (triggered by DOCA tag)
+  const docaTags = tags.filter(tag => 
+    tag.toLowerCase().includes('doca')
+  );
+  
+  if (docaTags.length > 0) {
+    // Add OS-specific packages for building drivers
+    if (isRocky) {
+      enhancements.packages.push('gcc', 'kernel-devel', 'kernel-headers', 'wget', 'python3-pip', 'curl', 'rpm-build');
+    } else {
+      enhancements.packages.push('build-essential', 'linux-headers-generic', 'wget', 'python3-pip', 'curl');
+    }
+    
+    // Add DOCA installation script as a file
+    enhancements.write_files.push({
+      content: `#!/bin/bash
+set -e
+echo "Starting DOCA installation" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+cd /tmp
+
+# Detect OS
+echo "=== OS Detection for DOCA ===" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+if [ -f /etc/os-release ]; then
+    source /etc/os-release
+    OS_NAME=$ID
+    OS_VERSION=$VERSION_ID
+    OS_MAJOR_VERSION=\${VERSION_ID%%.*}
+    echo "Detected OS: $OS_NAME $OS_VERSION (Major: $OS_MAJOR_VERSION)" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+else
+    echo "Cannot detect OS, defaulting to Ubuntu 22.04" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    OS_NAME="ubuntu"
+    OS_VERSION="22.04"
+    OS_MAJOR_VERSION="22"
+fi
+
+# Install DOCA based on OS
+echo "Installing DOCA for $OS_NAME $OS_VERSION..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+
+if [[ "$OS_NAME" == "ubuntu" ]]; then
+    # Ubuntu DOCA installation
+    echo "Setting up DOCA for Ubuntu..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    
+    # Determine repository based on version (use 22.04 repo for 24.04 compatibility)
+    if [[ "$OS_VERSION" == "20.04" ]]; then
+        DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu20.04/x86_64/"
+    else
+        # Use 22.04 repo for 22.04, 24.04, and unknown versions
+        DOCA_REPO_URL="https://linux.mellanox.com/public/repo/doca/3.1.0/ubuntu22.04/x86_64/"
+    fi
+    
+    echo "Using DOCA repository: $DOCA_REPO_URL" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    
+    # Install DOCA step by step
+    echo "Step 1: Adding Mellanox GPG key..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    curl -fsSL https://linux.mellanox.com/public/repo/doca/GPG-KEY-Mellanox.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub || exit 1
+    
+    echo "Step 2: Adding DOCA repository..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    echo "deb [signed-by=/etc/apt/trusted.gpg.d/GPG-KEY-Mellanox.pub] $DOCA_REPO_URL ./" > /etc/apt/sources.list.d/doca.list || exit 1
+    
+    echo "Step 3: Updating package lists..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    apt-get update 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+    
+    echo "Step 4: Installing doca-all package..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    apt-get -y install doca-all 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+    
+elif [[ "$OS_NAME" == "rocky" || "$OS_NAME" == "rhel" || "$OS_NAME" == "centos" ]]; then
+    # Rocky/RHEL DOCA installation
+    echo "Setting up DOCA for $OS_NAME $OS_MAJOR_VERSION..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    
+    # Create DOCA repository configuration
+    cat > /etc/yum.repos.d/doca.repo << EOF
+[doca]
+name=DOCA Online Repo
+baseurl=https://linux.mellanox.com/public/repo/doca/3.1.0/rhel\${OS_MAJOR_VERSION}.0/x86_64/
+enabled=1
+gpgcheck=0
+EOF
+    
+    echo "Step 1: Cleaning package cache..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    dnf clean all 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+    
+    echo "Step 2: Installing doca-ofed package..." | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    dnf -y install doca-ofed 2>&1 | tee -a /var/log/cloud-init-userdata.log || exit 1
+    
+else
+    echo "OS $OS_NAME not supported for DOCA installation" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+    exit 1
+fi
+
+echo "DOCA installation completed successfully" | tee -a /var/log/cloud-init-userdata.log /var/log/maas-deployment.log
+`,
+      path: '/tmp/install_doca.sh'
+    });
+    
+    // Add commands to run the script with logging
+    enhancements.runcmd.push(
+      'echo "=== DOCA Installation ===" | tee -a /var/log/cloud-init-userdata.log',
+      'chmod +x /tmp/install_doca.sh 2>&1 | tee -a /var/log/cloud-init-userdata.log',
+      '/tmp/install_doca.sh 2>&1 | tee -a /var/log/cloud-init-userdata.log'
+    );
+  }
+
   // Intel NIC support
   const intelNicTags = tags.filter(tag => 
     tag.toLowerCase().includes('intel') && 
@@ -624,6 +726,13 @@ export const getEnhancementDescription = (tags) => {
   );
   if (connectxTags.length > 0) {
     descriptions.push('ConnectX NIC driver loading (mlx5_core, mlx5_ib)');
+  }
+  
+  const docaTags = tags.filter(tag => 
+    tag.toLowerCase().includes('doca')
+  );
+  if (docaTags.length > 0) {
+    descriptions.push('DOCA installation (doca-all for Ubuntu, doca-ofed for Rocky/RHEL)');
   }
   
   const intelNicTags = tags.filter(tag => 
