@@ -3,6 +3,7 @@
 A Docker-based web frontend for MAAS (Metal as a Service) that enables full provisioning of machines based on their MAAS tags through a multi-step dialog interface.
 
 ## Features
+<img width="1286" height="965" alt="image" src="https://github.com/user-attachments/assets/4ad90d25-5e8e-4a8f-a741-b4e591afbd8f" />
 
 - **Multi-step provisioning wizard** with intuitive UI
 - **Tag-based machine filtering** for targeted deployments
@@ -14,6 +15,8 @@ A Docker-based web frontend for MAAS (Metal as a Service) that enables full prov
 - **Visual status charts** showing machine distribution and health
 - **Comprehensive deployment tracking** - shows all MAAS deployments (app-initiated and manual)
 - **Real-time deployment monitoring** with automatic status updates every 30 seconds
+<img width="908" height="507" alt="image" src="https://github.com/user-attachments/assets/c5805543-b226-4ad2-9b6c-e6f17b7c5fbd" />
+
 - **Pool-aware deployment history** with visual source indicators and expandable view
 - **API-managed provisioning** with tag-based auto-selection
 - **Advanced tag matching** (ALL/ANY modes) for flexible machine selection
@@ -25,6 +28,7 @@ A Docker-based web frontend for MAAS (Metal as a Service) that enables full prov
 - **Docker containerized** for easy deployment
 - **Network accessible** from any host (not just localhost)
 - **Responsive Material-UI design**
+<img width="1284" height="967" alt="image" src="https://github.com/user-attachments/assets/ccbda1bf-d45c-4cc8-a156-b2b363e01215" />
 
 ## Quick Start
 
