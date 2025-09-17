@@ -104,6 +104,7 @@ function App() {
   
   const readyMachines = machines?.filter(m => m.status_name === 'Ready') || [];
   const deployedMachines = machines?.filter(m => m.status_name === 'Deployed') || [];
+  const deployingMachines = machines?.filter(m => m.status_name === 'Deploying') || [];
   
   // Broken machines include failed states and error conditions
   const brokenMachines = machines?.filter(m => 
@@ -164,7 +165,7 @@ function App() {
           </Alert>
         )}
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr', lg: '1fr 1fr 1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -205,6 +206,26 @@ function App() {
               ) : (
                 <Typography variant="h4" color="info.main">
                   {deployedMachines.length}
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Deploying
+              </Typography>
+              {isLoading ? (
+                <CircularProgress size={24} />
+              ) : (
+                <Typography variant="h4" color="warning.main">
+                  {deployingMachines.length}
+                </Typography>
+              )}
+              {!isLoading && deployingMachines.length > 0 && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  In progress
                 </Typography>
               )}
             </CardContent>

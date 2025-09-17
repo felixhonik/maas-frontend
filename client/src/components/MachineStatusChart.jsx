@@ -18,6 +18,7 @@ const MachineStatusChart = ({ machines }) => {
   // Group machines by status
   const readyMachines = machines.filter(m => m.status_name === 'Ready');
   const deployedMachines = machines.filter(m => m.status_name === 'Deployed');
+  const deployingMachines = machines.filter(m => m.status_name === 'Deploying');
   const brokenMachines = machines.filter(m => 
     m.status_name === 'Failed deployment' || 
     m.status_name === 'Failed testing' ||
@@ -31,6 +32,7 @@ const MachineStatusChart = ({ machines }) => {
   const otherMachines = machines.filter(m => 
     !readyMachines.includes(m) && 
     !deployedMachines.includes(m) && 
+    !deployingMachines.includes(m) &&
     !brokenMachines.includes(m)
   );
 
@@ -46,6 +48,12 @@ const MachineStatusChart = ({ machines }) => {
       value: deployedMachines.length,
       color: theme.palette.info.main,
       count: deployedMachines.length
+    },
+    {
+      name: 'Deploying',
+      value: deployingMachines.length,
+      color: theme.palette.warning.main,
+      count: deployingMachines.length
     },
     {
       name: 'Broken',

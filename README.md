@@ -1,6 +1,6 @@
 # MAAS Frontend
 
-A Docker-based web frontend for MAAS (Metal as a Service) that enables full provisioning of machines based on their MAAS tags through a multi-step dialog interface.
+A Docker-based web frontend for MAAS (Metal as a Service) that enables full provisioning of machines based on their MAAS tags through a multi-step dialog interface. Built with React frontend and FastAPI backend.
 
 ## Features
 <img width="1286" height="965" alt="image" src="https://github.com/user-attachments/assets/4ad90d25-5e8e-4a8f-a741-b4e591afbd8f" />
@@ -81,16 +81,24 @@ The application will be available at http://localhost:3001 or from any host that
 
 For local development:
 
+**Frontend:**
 ```bash
-# Install dependencies
-npm run install:all
-
-# Start development servers
+cd client
+npm install
 npm run dev
 ```
 
+**Backend:**
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Start FastAPI server
+uvicorn app:app --host 0.0.0.0 --port 3001 --reload
+```
+
 This starts:
-- Backend API server on port 3001
+- FastAPI backend server on port 3001
 - Frontend dev server on port 3000 (with proxy to backend)
 
 ## Usage
@@ -214,14 +222,14 @@ Deploy multiple machines with a single API call. Returns immediately with a job 
 **Request Body (Manual Selection Mode):**
 ```json
 {
-  "machines": ["machine-id-1", "machine-id-2"],
+  "machines": ["wekapoc1", "wekapoc2", "wekapoc3"],
   "distro_series": "jammy",
   "user_data": "#!/bin/bash\necho 'Manual deployment'"
 }
 ```
 
 **Parameters:**
-- `machines` (required for manual mode): Array of machine system IDs to deploy
+- `machines` (required for manual mode): Array of machine hostnames or system IDs to deploy
 - `auto_select` (optional): Enable automatic machine selection by tags
 - `tags` (required for auto-select): Array of MAAS tags for machine selection
 - `count` (required for auto-select): Number of machines to provision
@@ -362,7 +370,17 @@ When using multiple tags for auto-selection, you can control how tags are matche
 
 ### API Examples
 
-**Deploy specific machines:**
+**Deploy specific machines (by hostname):**
+```bash
+curl -X POST http://your-server:3001/api/provision \
+  -H "Content-Type: application/json" \
+  -d '{
+    "machines": ["wekapoc1", "wekapoc2", "wekapoc3"],
+    "distro_series": "jammy"
+  }'
+```
+
+**Deploy specific machines (by system ID):**
 ```bash
 curl -X POST http://your-server:3001/api/provision \
   -H "Content-Type: application/json" \
@@ -372,12 +390,12 @@ curl -X POST http://your-server:3001/api/provision \
   }'
 ```
 
-**Deploy with custom cloud-init:**
+**Deploy with custom cloud-init (using hostname):**
 ```bash
 curl -X POST http://your-server:3001/api/provision \
   -H "Content-Type: application/json" \
   -d '{
-    "machines": ["4y3h8a"],
+    "machines": ["wekapoc1"],
     "distro_series": "focal",
     "user_data": "#!/bin/bash\napt update\napt install -y docker.io\nsystemctl enable docker"
   }'
@@ -571,7 +589,7 @@ The included `docker-compose.yml` provides:
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   React Frontend │────│   Node.js API    │────│   MAAS Server   │
+│   React Frontend │────│   FastAPI Backend│────│   MAAS Server   │
 │   (Port 3000)    │    │   (Port 3001)    │    │   (Port 5240)   │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
@@ -579,7 +597,7 @@ The included `docker-compose.yml` provides:
 ### Components
 
 - **Frontend**: React with Material-UI for the user interface
-- **Backend**: Node.js/Express API server with MAAS integration
+- **Backend**: FastAPI (Python) server with MAAS integration and async support
 - **Configuration**: File-based configuration for MAAS connection
 - **Docker**: Multi-stage build for optimized production deployment
 
@@ -598,19 +616,29 @@ maas-front/
 │   │   │   └── MachineSelection.jsx
 │   │   ├── hooks/         # Custom React hooks
 │   │   └── services/      # API client and cloud-init
-├── server.js              # Express backend
+├── app.py                 # FastAPI backend
+├── services/              # Python backend services
+│   └── cloud_init_generator.py  # Cloud-init configuration
+├── requirements.txt       # Python dependencies
 ├── maas.conf.example      # MAAS configuration template
 ├── users.conf.example     # User credentials template
 ├── Dockerfile             # Multi-stage build
 └── docker-compose.yml     # Orchestration
 ```
 
-### Scripts
+### Development Scripts
 
-- `npm run dev` - Start development servers
+**Frontend:**
+- `npm run dev` - Start frontend development server
 - `npm run build` - Build frontend for production
-- `npm start` - Start production server
-- `npm run install:all` - Install all dependencies
+
+**Backend:**
+- `uvicorn app:app --host 0.0.0.0 --port 3001 --reload` - Start FastAPI development server
+- `pip install -r requirements.txt` - Install Python dependencies
+
+**Docker:**
+- `docker compose build` - Build the application
+- `docker compose up -d` - Start the application
 
 ## Troubleshooting
 

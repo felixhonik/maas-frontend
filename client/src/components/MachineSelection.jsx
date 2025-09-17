@@ -19,6 +19,7 @@ const getStatusColor = (status) => {
     case 'Ready': return 'success';
     case 'Allocated': return 'warning';
     case 'Deployed': return 'info';
+    case 'Deploying': return 'warning';
     case 'Failed': return 'error';
     default: return 'default';
   }

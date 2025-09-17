@@ -45,6 +45,7 @@ const BrokenMachinesTable = ({ machines }) => {
       case 'Failed': return 'error';
       case 'Broken': return 'error';
       case 'Error': return 'error';
+      case 'Deploying': return 'warning';
       default: return 'default';
     }
   };
