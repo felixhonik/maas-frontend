@@ -30,6 +30,32 @@ A Docker-based web frontend for MAAS (Metal as a Service) that enables full prov
 - **Responsive Material-UI design**
 <img width="1284" height="967" alt="image" src="https://github.com/user-attachments/assets/ccbda1bf-d45c-4cc8-a156-b2b363e01215" />
 
+## Recent Updates
+
+### v2.0.0 - FastAPI Migration & Hostname Support (September 2025)
+
+**🚀 Major Framework Migration:**
+- **Backend Migration**: Complete migration from Express.js/Node.js to FastAPI/Python
+- **Hostname Support**: Machine provisioning now accepts hostnames (e.g., `"wekapoc1"`) in addition to system IDs
+- **Deploying Status**: Added "Deploying" status visualization to dashboard and pie charts
+- **Enhanced Error Handling**: Improved error messages with available hostnames/IDs when resolution fails
+
+**💡 New Features:**
+- **Hostname-based Provisioning**: Use friendly hostnames instead of cryptic system IDs
+- **Mixed Mode Support**: Accept both hostnames and system IDs in the same request
+- **Real-time Deployment Tracking**: "Deploying" machines now show in dashboard with orange status
+- **FastAPI Auto-Documentation**: Interactive API docs available at `/docs`
+
+**⚠️ Breaking Changes:**
+- **Runtime**: Now requires Python 3.11+ instead of Node.js
+- **Docker Image**: Based on `python:3.11-alpine` instead of `node:18-alpine`
+- **Cloud-init Generator**: Moved from JavaScript to Python (`services/cloud_init_generator.py`)
+
+**🔧 Migration Guide:**
+- Existing deployments: No changes needed - system IDs still work
+- New deployments: Can now use hostnames for easier identification
+- Docker: Rebuild container with `docker compose build`
+
 ## Quick Start
 
 ### 1. Configure MAAS Connection
